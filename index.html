@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>垃圾回收輪值排班</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- 頂部列 -->
+    <header class="topbar">
+      <div class="topbar-title">
+        <span class="topbar-emoji">🗑️</span>
+        <span>垃圾輪值排班</span>
+      </div>
+      <button id="btnSettings" class="icon-btn" title="館別設定">⚙️</button>
+    </header>
+
+    <!-- 館別標籤 -->
+    <nav id="buildingTabs" class="building-tabs"><!-- JS render --></nav>
+
+    <!-- 月份切換 -->
+    <div class="month-nav">
+      <button id="prevMonth" class="month-arrow">‹</button>
+      <div class="month-label"><span id="monthLabel">2026 年 6 月</span></div>
+      <button id="nextMonth" class="month-arrow">›</button>
+    </div>
+
+    <!-- 本週輪值卡 -->
+    <section id="thisWeekCard" class="this-week-card">
+      <div class="tw-tag">本週輪值</div>
+      <div class="tw-name" id="thisWeekName">—</div>
+      <div class="tw-sub" id="thisWeekSub">倒垃圾日：—</div>
+    </section>
+
+    <!-- 月曆編輯區 -->
+    <main class="board">
+      <div class="board-hint">長按左側名牌可拖拉調整週次；點名牌可換組</div>
+      <div id="weekList" class="week-list"><!-- JS render --></div>
+      <div class="board-actions">
+        <button id="btnAuto" class="btn btn-ghost">↻ 重新自動排班</button>
+      </div>
+
+      <!-- 倒垃圾注意事項（每月共用） -->
+      <section class="notes-card">
+        <div class="notes-head">
+          <span>📋 規則說明 / 注意事項</span>
+          <button id="btnEditNotes" class="link-btn">編輯</button>
+        </div>
+        <div class="notes-two">
+          <div class="nt-col">
+            <div class="nt-title">規則說明</div>
+            <div id="rulesView" class="notes-view"></div>
+          </div>
+          <div class="nt-col">
+            <div class="nt-title">其他注意事項</div>
+            <div id="otherView" class="notes-view"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 底部匯出列 -->
+    <footer class="exportbar">
+      <button id="btnExportMonth" class="btn btn-primary">🖼️ 匯出整月圖</button>
+    </footer>
+  </div>
+
+  <!-- 設定面板 -->
+  <div id="settingsSheet" class="sheet hidden">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-panel">
+      <div class="sheet-head">
+        <h2 id="settingsTitle">館別設定</h2>
+        <button class="icon-btn" data-close>✕</button>
+      </div>
+      <div class="sheet-body">
+        <label class="field">
+          <span>館別名稱</span>
+          <input id="setName" type="text" />
+        </label>
+
+        <div class="field">
+          <span>倒垃圾日（顯示用）</span>
+          <div id="weekdayPicker" class="weekday-picker"></div>
+        </div>
+
+        <div class="field">
+          <span>輪值組（依順序輪流，可拖拉排序）</span>
+          <div id="groupEditor" class="group-editor"></div>
+          <button id="btnAddGroup" class="btn btn-ghost btn-sm">＋ 新增輪值組</button>
+        </div>
+
+        <div class="field">
+          <span>規則說明（每月共用）</span>
+          <div class="rt">
+            <div class="rt-toolbar" data-for="editRules">
+              <button type="button" class="rt-btn" data-cmd="bold"><b>B</b></button>
+              <span class="rt-colors">
+                <button type="button" class="rt-color" data-cmd="color" data-color="#2f2b29" style="background:#2f2b29" title="黑"></button>
+                <button type="button" class="rt-color" data-cmd="color" data-color="#ee8a2d" style="background:#ee8a2d" title="橘"></button>
+                <button type="button" class="rt-color" data-cmd="color" data-color="#e23b3b" style="background:#e23b3b" title="紅"></button>
+                <button type="button" class="rt-color" data-cmd="color" data-color="#2f9e57" style="background:#2f9e57" title="綠"></button>
+                <button type="button" class="rt-color" data-cmd="color" data-color="#2f6fe2" style="background:#2f6fe2" title="藍"></button>
+              </span>
+              <span class="rt-count" data-for="editRules"></span>
+            </div>
+            <div id="editRules" class="rt-area" contenteditable="true" data-maxlines="7" data-ph="輸入規則說明…（可選字後按 B 粗體或點顏色）"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <span>其他注意事項（每月共用）</span>
+          <div class="rt">
+            <div class="rt-toolbar" data-for="editOther">
+              <button type="button" class="rt-btn" data-cmd="bold"><b>B</b></button>
+              <span class="rt-colors">
+                <button type="button" class="rt-color" data-cmd="color" data-color="#2f2b29" style="background:#2f2b29" title="黑"></button>
+                <button type="button" class="rt-color" data-cmd="color" data-color="#ee8a2d" style="background:#ee8a2d" title="橘"></button>
+                <button type="button" class="rt-color" data-cmd="color" data-color="#e23b3b" style="background:#e23b3b" title="紅"></button>
+                <button type="button" class="rt-color" data-cmd="color" data-color="#2f9e57" style="background:#2f9e57" title="綠"></button>
+                <button type="button" class="rt-color" data-cmd="color" data-color="#2f6fe2" style="background:#2f6fe2" title="藍"></button>
+              </span>
+              <span class="rt-count" data-for="editOther"></span>
+            </div>
+            <div id="editOther" class="rt-area" contenteditable="true" data-maxlines="9" data-ph="輸入其他注意事項…（回收守則、時間地點、代倒費用等）"></div>
+          </div>
+        </div>
+      </div>
+      <div class="sheet-foot">
+        <button id="btnSaveSettings" class="btn btn-primary">儲存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 匯出畫布（離屏，3:4） -->
+  <div id="exportStage" class="export-stage" aria-hidden="true"></div>
+
+  <!-- 換組選單（簡易） -->
+  <div id="pickerSheet" class="sheet hidden">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-panel sheet-panel-bottom">
+      <div class="sheet-head"><h2>選擇輪值組</h2><button class="icon-btn" data-close>✕</button></div>
+      <div id="pickerList" class="picker-list"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/logo.js"></script>
+  <script src="js/cloud.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

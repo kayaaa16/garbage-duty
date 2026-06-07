@@ -119,40 +119,63 @@ function getSchedule(year, month) {
   const groups = b.groups;
   let sched = state.schedules[key] || { weeks: [] };
 
+  // 對齊週數、保留既有指派（手動拖拉 & 重排結果都會留著，不會每次被重算覆蓋）
   const out = [];
-  let auto = computeStartOffset(year, month);
   for (let i = 0; i < weeks.length; i++) {
-    const prev = sched.weeks[i];
-    if (prev && prev.locked && groups.some(gr => gr.id === prev.groupId)) {
-      out.push({ groupId: prev.groupId, locked: true });
-    } else {
-      const gidv = groups.length ? groups[auto % groups.length].id : null;
-      out.push({ groupId: gidv, locked: false });
+    out.push(sched.weeks[i] || { groupId: null, locked: false });
+  }
+  // 只補「未鎖定且尚未指派 / 指派的組已被刪」的週，用預設順序 round-robin
+  let auto = computeStartOffset(year, month);
+  out.forEach(w => {
+    const valid = w.groupId && groups.some(g => g.id === w.groupId);
+    if (!w.locked && !valid) {
+      w.groupId = groups.length ? groups[auto % groups.length].id : null;
       auto++;
     }
-  }
+  });
   sched.weeks = out;
   state.schedules[key] = sched;
   return sched;
 }
 
-// 跨月延續：累加同年此月之前的週列數當起始順位
+// 起始順位：若該館「上一個月」已排程則接續其最後一組之後；否則從第 1 組開始
 function computeStartOffset(year, month) {
-  let offset = 0;
-  let y = year, m = 1;
-  while (!(y === year && m === month)) {
-    offset += computeWeeks(y, m).length;
-    m++;
-    if (m > 12) { m = 1; y++; }
-    if ((y - year) > 2) break;
+  const b = curBuilding();
+  if (!b.groups.length) return 0;
+  let py = year, pm = month - 1;
+  if (pm < 1) { pm = 12; py--; }
+  const prev = state.schedules[schedKey(b.id, py, pm)];
+  if (prev && prev.weeks && prev.weeks.length) {
+    const lastGid = prev.weeks[prev.weeks.length - 1].groupId;
+    const idx = b.groups.findIndex(g => g.id === lastGid);
+    if (idx >= 0) return idx + 1;   // 接續上月最後一組的下一組
   }
-  return offset;
+  return 0;                          // 第一個月 → 從第 1 組開始
 }
 
+// 隨機重排：把組別順序洗牌後 round-robin 填滿（清除手動鎖定），每次盡量不同
 function reAutoSchedule(year, month) {
-  const key = schedKey(curBuilding().id, year, month);
-  delete state.schedules[key];
-  getSchedule(year, month);
+  const b = curBuilding();
+  const key = schedKey(b.id, year, month);
+  const weeks = computeWeeks(year, month);
+  const groups = b.groups;
+  if (!groups.length) {
+    state.schedules[key] = { weeks: weeks.map(() => ({ groupId: null, locked: false })) };
+    save();
+    return;
+  }
+  const before = (state.schedules[key] && state.schedules[key].weeks || []).map(w => w.groupId).join(',');
+  let order, seq, tries = 0;
+  do {
+    order = groups.map(g => g.id);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    seq = weeks.map((wk, i) => order[i % order.length]).join(',');
+    tries++;
+  } while (seq === before && tries < 8 && groups.length > 1);
+  state.schedules[key] = { weeks: weeks.map((wk, i) => ({ groupId: order[i % order.length], locked: false })) };
   save();
 }
 
@@ -342,18 +365,22 @@ function updateRichCount(area) {
 function setupRichLimits() {
   $$('.rt-area[data-maxlines]').forEach(area => {
     const max = parseInt(area.dataset.maxlines, 10);
+    // 只擋「手動按 Enter 超過行數」；貼上一律放行（避免手機貼不上）
     area.addEventListener('beforeinput', (e) => {
       const t = e.inputType || '';
-      const cur = rtLines(area);
-      if (t === 'insertParagraph' || t === 'insertLineBreak') {
-        if (cur >= max) e.preventDefault();
-        return;
+      if ((t === 'insertParagraph' || t === 'insertLineBreak') && rtLines(area) >= max) {
+        e.preventDefault();
       }
-      if (t === 'insertFromPaste' && e.dataTransfer) {
-        const paste = e.dataTransfer.getData('text') || '';
-        const addLines = (paste.match(/\n/g) || []).length;
-        if (cur + addLines > max) e.preventDefault();
-      }
+    });
+    // 貼上：轉純文字插入（手機相容、避免帶入奇怪格式）
+    area.addEventListener('paste', (e) => {
+      const cd = e.clipboardData || window.clipboardData;
+      if (!cd) return;
+      const text = cd.getData('text/plain');
+      if (text == null) return;
+      e.preventDefault();
+      try { document.execCommand('insertText', false, text); } catch (_) { /* 失敗就交給預設 */ }
+      updateRichCount(area);
     });
     area.addEventListener('input', () => updateRichCount(area));
   });
@@ -483,12 +510,18 @@ function saveSettings() {
   b.dutyWeekdays = $$('#weekdayPicker .wd-chip.on')
     .map(c => parseInt(c.dataset.dow, 10)).sort((a, b2) => a - b2);
 
+  const beforeGroups = b.groups.map(g => g.id).join(',');
   const groups = [];
   $$('#groupEditor .group-row').forEach(r => {
     const name = r.querySelector('input').value.trim();
     if (name) groups.push({ id: r.dataset.id, name });
   });
   b.groups = groups; // 允許空白
+
+  // 輪值組有增刪 → 本月重排成預設順序（讓新增/刪除立即反映；只動本月）
+  if (groups.map(g => g.id).join(',') !== beforeGroups) {
+    delete state.schedules[schedKey(b.id, state.view.year, state.view.month)];
+  }
 
   save();
   closeSheet($('#settingsSheet'));
@@ -642,10 +675,10 @@ function bind() {
   $('#prevMonth').addEventListener('click', () => shiftMonth(-1));
   $('#nextMonth').addEventListener('click', () => shiftMonth(1));
   $('#btnAuto').addEventListener('click', () => {
-    if (confirm('重新自動排班會清除本月手動調整，確定嗎？')) {
+    if (confirm('隨機重排會打散本月順序並清除手動調整，確定嗎？')) {
       reAutoSchedule(state.view.year, state.view.month);
       rerender();
-      toast('已重新排班');
+      toast('已隨機重排');
     }
   });
   $('#btnSettings').addEventListener('click', openSettings);

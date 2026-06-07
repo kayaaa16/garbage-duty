@@ -320,7 +320,7 @@ body {
 .p-grid tbody tr:last-child { border-bottom: none; }
 
 .p-name-cell { text-align: left; padding: 0 14px 0 4px; }
-.p-name-wrap { display: flex; align-items: center; gap: 16px; min-height: 92px; }
+.p-name-wrap { display: flex; align-items: center; gap: 16px; min-height: 84px; }
 .p-badge {
   flex: 0 0 auto; display: inline-grid; place-items: center;
   width: 54px; height: 54px; border-radius: 14px;
@@ -331,7 +331,7 @@ body {
 .p-group.none { color: #c9c1b8; font-weight: 500; font-size: 26px; }
 
 /* 日：倒垃圾日 = 實心橘圈白字（明顯）；其餘反灰不明顯；六日不特別上色 */
-.p-day { font-size: 30px; font-weight: 500; color: #c4bcb2; padding: 0; height: 92px; vertical-align: middle; }
+.p-day { font-size: 30px; font-weight: 500; color: #c4bcb2; padding: 0; height: 84px; vertical-align: middle; }
 .p-day.out { color: #e1dace; }
 .p-day.duty span {
   display: inline-grid; place-items: center; width: 60px; height: 60px;
@@ -350,8 +350,9 @@ body {
 }
 .p-note-title::before { content: ""; width: 7px; height: 24px; border-radius: 4px; background: var(--accent); }
 .p-note-body {
-  flex: 1; border-radius: 20px; padding: 26px 30px;
-  font-size: 22px; line-height: 1.74; word-break: break-word;
+  flex: 1; border-radius: 20px; padding: 22px 26px;
+  font-size: 19px; line-height: 1.6; word-break: break-word;
+  text-align: justify; text-justify: inter-character;
   overflow: hidden;
 }
 .p-note-col.rules .p-note-body { background: var(--accent-soft); color: #6a5538; }

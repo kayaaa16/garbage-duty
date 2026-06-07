@@ -145,11 +145,15 @@ body {
   font-size: 13px; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 8px;
 }
 .link-btn:active { background: var(--accent-soft); }
-.notes-two { display: flex; flex-direction: column; gap: 14px; }
-.nt-title { font-size: 13px; font-weight: 800; color: var(--accent-deep); margin-bottom: 4px; }
-.notes-view { font-size: 14px; color: var(--ink); line-height: 1.7; white-space: normal; word-break: break-word; }
-.notes-view b, .notes-view strong { font-weight: 900; }
-.notes-view.empty { color: var(--ink-soft); font-size: 13px; }
+/* 匯出預覽（所見即所得：縮放版的海報 notes 區） */
+.np-hint { font-size: 11px; color: var(--ink-soft); margin-bottom: 8px; }
+.notes-preview-frame {
+  background: #faf6f0; border: 1px solid #f0e6d8; border-radius: 14px; padding: 14px;
+}
+.notes-preview { width: 100%; overflow: hidden; }
+.np-scaler { position: relative; width: 100%; }
+.np-board { margin-top: 0 !important; }
+.np-empty { color: #b6ada4; }
 .picker-empty { padding: 18px 16px; color: var(--ink-soft); font-size: 14px; text-align: center; }
 
 /* ---- 富文本編輯器（粗體 / 顏色） ---- */

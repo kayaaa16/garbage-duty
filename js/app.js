@@ -284,19 +284,32 @@ function renderBoard() {
   initSortable();
 }
 
+// 規則/注意事項：用跟匯出圖完全相同的兩欄版型，等比例縮放成「所見即所得」預覽
+const POSTER_NOTES_W = 952; // 匯出海報 notes 區寬度（1080 − 64×2）
 function renderNotes() {
   const b = curBuilding();
-  setNoteSection($('#rulesView'), b.rulesHtml);
-  setNoteSection($('#otherView'), b.otherHtml);
+  const host = $('#notesPreview');
+  if (!host) return;
+  const fb = (h, ph) => (h && h.replace(/<[^>]*>/g, '').trim()) ? h : `<span class="np-empty">${ph}</span>`;
+  host.innerHTML = `
+    <div class="np-scaler"><div class="p-notes np-board">
+      <div class="p-note-col rules"><div class="p-note-title">規則說明</div><div class="p-note-body">${fb(b.rulesHtml, '（尚未填寫，點右上「編輯」）')}</div></div>
+      <div class="p-note-col other"><div class="p-note-title">其他注意事項</div><div class="p-note-body">${fb(b.otherHtml, '（尚未填寫，點右上「編輯」）')}</div></div>
+    </div></div>`;
+  fitNotesPreview();
+  setTimeout(fitNotesPreview, 150); // 等字體載入後再校正高度
 }
-function setNoteSection(el, html) {
-  if (html && html.replace(/<[^>]*>/g, '').trim()) {
-    el.innerHTML = html;
-    el.classList.remove('empty');
-  } else {
-    el.innerHTML = '尚未填寫，點上方「編輯」填入。';
-    el.classList.add('empty');
-  }
+function fitNotesPreview() {
+  const host = $('#notesPreview');
+  if (!host) return;
+  const scaler = host.querySelector('.np-scaler');
+  const board = host.querySelector('.np-board');
+  if (!board || !host.clientWidth) return;
+  board.style.width = POSTER_NOTES_W + 'px';
+  board.style.transformOrigin = 'top left';
+  const scale = host.clientWidth / POSTER_NOTES_W;
+  board.style.transform = 'scale(' + scale + ')';
+  scaler.style.height = (board.offsetHeight * scale) + 'px';
 }
 
 /* ---------- 富文本（粗體 / 顏色） ---------- */
@@ -693,6 +706,7 @@ function bind() {
 
   setupRichToolbars();
   setupRichLimits();
+  window.addEventListener('resize', fitNotesPreview);
 }
 
 /* ============================================================

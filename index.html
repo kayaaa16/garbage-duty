@@ -40,7 +40,7 @@
 
     <!-- 月曆編輯區 -->
     <main class="board">
-      <div class="board-hint">長按左側名牌可拖拉調整週次；點名牌可換組</div>
+      <div id="boardHint" class="board-hint">長按左側名牌可拖拉調整週次；點名牌可換組</div>
       <div id="weekList" class="week-list"><!-- JS render --></div>
       <div class="board-actions">
         <button id="btnAuto" class="btn btn-ghost">🔀 隨機重排</button>
@@ -78,6 +78,14 @@
           <span>館別名稱</span>
           <input id="setName" type="text" />
         </label>
+
+        <div class="field">
+          <span>排班方式</span>
+          <div id="modePicker" class="mode-picker">
+            <button type="button" class="mode-opt" data-mode="week"><b>週輪替</b><small>一週一組輪流</small></button>
+            <button type="button" class="mode-opt" data-mode="day"><b>每日安排</b><small>逐日各自指定</small></button>
+          </div>
+        </div>
 
         <div class="field">
           <span>倒垃圾日（顯示用）</span>

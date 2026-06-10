@@ -129,6 +129,31 @@ body {
 .wk-day.duty { background: var(--accent-soft); font-weight: 700; color: var(--accent-deep); }
 .wk-day.weekend .dow { color: var(--accent); }
 
+/* 每日安排模式：日曆格內逐日掛名、可點選 */
+.day-board { display: flex; flex-direction: column; gap: 10px; }
+.day-board .cal-row { height: auto; min-height: 58px; align-items: stretch; }
+.day-board .wk-days { align-items: stretch; }
+.day-board .wk-day { min-height: 52px; justify-content: flex-start; padding-top: 6px; }
+.wk-day.duty[data-day] { cursor: pointer; }
+.wk-day.duty[data-day]:active { transform: scale(.96); }
+.wk-day .day-assign {
+  margin-top: 3px; font-size: 9px; font-weight: 800; color: var(--accent-deep);
+  line-height: 1.05; text-align: center; word-break: break-all; max-width: 100%;
+}
+
+/* 排班方式切換（segmented） */
+.mode-picker { display: flex; gap: 8px; }
+.mode-opt {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 8px; border-radius: 12px; border: 1.5px solid #e6ddd0;
+  background: #fff; color: var(--ink-soft); cursor: pointer; transition: all .15s;
+}
+.mode-opt b { font-size: 15px; font-weight: 800; color: var(--ink); }
+.mode-opt small { font-size: 11px; }
+.mode-opt.active { border-color: var(--accent); background: var(--accent-soft); }
+.mode-opt.active b { color: var(--accent-deep); }
+.mode-opt.active small { color: var(--accent-deep); }
+
 .board-actions { margin: 16px 4px 6px; }
 
 /* ---- 注意事項區 ---- */
@@ -341,6 +366,14 @@ body {
   display: inline-grid; place-items: center; width: 60px; height: 60px;
   border-radius: 50%; background: var(--accent); color: #fff; font-weight: 900;
   box-shadow: 0 5px 12px rgba(238,138,45,.40);
+}
+/* 每日安排模式：倒垃圾日圈圈下方掛負責組名 */
+.p-day.duty.has-name { padding: 8px 0; }
+.p-day.duty.has-name .p-day-in { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.p-day.duty.has-name span { width: 52px; height: 52px; font-size: 26px; }
+.p-day-name {
+  font-style: normal; font-size: 19px; font-weight: 800; line-height: 1.08;
+  color: var(--accent-deep); word-break: break-all; max-width: 120px;
 }
 
 /* 備註兩欄：左=規則(3) ｜ 右=其他(7)，往下撐滿剩餘空間 */

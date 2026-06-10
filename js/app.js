@@ -14,6 +14,7 @@ function defaultState() {
   const buildings = BUILDING_NAMES.map((name, i) => ({
     id: 'b' + (i + 1),
     name,
+    mode: 'week',       // 排班方式：'week' 週輪替（一週一組）｜ 'day' 每日安排（逐日指定）
     dutyWeekdays: [],   // 由小幫手自填
     groups: [],         // 清空 MOCK，留白
     rulesHtml: '',      // 規則說明（左欄，富文本）
@@ -47,6 +48,7 @@ function migrate(s) {
   const def = defaultState();
   if (!Array.isArray(s.buildings) || !s.buildings.length) s.buildings = def.buildings;
   s.buildings.forEach(b => {
+    b.mode = (b.mode === 'day') ? 'day' : 'week';
     b.dutyWeekdays = b.dutyWeekdays || [];
     b.groups = b.groups || [];
     // 舊版單一 notes（純文字）→ 併入左欄規則說明
@@ -153,6 +155,90 @@ function computeStartOffset(year, month) {
   return 0;                          // 第一個月 → 從第 1 組開始
 }
 
+/* ---------- 每日安排模式（mode: 'day'） ---------- */
+// 該月所有「倒垃圾日期」(day-of-month)，依時間排序
+function dutyDates(year, month) {
+  const duty = curBuilding().dutyWeekdays;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const out = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow = (new Date(year, month - 1, d).getDay() + 6) % 7; // 0=Mon..6=Sun
+    if (duty.includes(dow)) out.push({ day: d, dow });
+  }
+  return out;
+}
+
+// 每日模式：起始順位接續上一個月最後一個倒垃圾日的下一組
+function computeStartOffsetDay(year, month) {
+  const b = curBuilding();
+  if (!b.groups.length) return 0;
+  let py = year, pm = month - 1;
+  if (pm < 1) { pm = 12; py--; }
+  const prev = state.schedules[schedKey(b.id, py, pm)];
+  if (prev && prev.days) {
+    const pdates = dutyDates(py, pm);
+    for (let i = pdates.length - 1; i >= 0; i--) {
+      const g = prev.days[pdates[i].day];
+      const idx = b.groups.findIndex(x => x.id === g);
+      if (idx >= 0) return idx + 1;
+    }
+  }
+  return 0;
+}
+
+// 取得（必要時生成）每日指派：{ dayNum: groupId }；保留手動指定、只補空/失效、清掉非倒垃圾日
+function getDaySchedule(year, month) {
+  const b = curBuilding();
+  const key = schedKey(b.id, year, month);
+  const groups = b.groups;
+  const dates = dutyDates(year, month);
+  const sched = state.schedules[key] || {};
+  const days = sched.days || {};
+  const start = computeStartOffsetDay(year, month);
+  dates.forEach((dt, idx) => {
+    const cur = days[dt.day];
+    const valid = cur && groups.some(g => g.id === cur);
+    if (!valid) days[dt.day] = groups.length ? groups[(start + idx) % groups.length].id : null;
+  });
+  // 倒垃圾星期被改過 → 清掉已不是倒垃圾日的舊指派
+  Object.keys(days).forEach(k => { if (!dates.some(dt => dt.day === +k)) delete days[k]; });
+  sched.days = days;
+  state.schedules[key] = sched;
+  return days;
+}
+
+// 每日模式隨機重排：洗牌組別順序後逐日 round-robin
+function reAutoScheduleDay(year, month) {
+  const b = curBuilding();
+  const key = schedKey(b.id, year, month);
+  const groups = b.groups;
+  const dates = dutyDates(year, month);
+  const sched = state.schedules[key] || {};
+  if (!groups.length) { sched.days = {}; state.schedules[key] = sched; save(); return; }
+  const before = dates.map(dt => (sched.days || {})[dt.day]).join(',');
+  let order, seq, tries = 0;
+  do {
+    order = groups.map(g => g.id);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    seq = dates.map((dt, i) => order[i % order.length]).join(',');
+    tries++;
+  } while (seq === before && tries < 8 && groups.length > 1);
+  const days = {};
+  dates.forEach((dt, i) => { days[dt.day] = order[i % order.length]; });
+  sched.days = days;
+  state.schedules[key] = sched;
+  save();
+}
+
+// 依目前館別模式分派隨機重排
+function reAutoScheduleAny(year, month) {
+  if (curBuilding().mode === 'day') reAutoScheduleDay(year, month);
+  else reAutoSchedule(year, month);
+}
+
 // 隨機重排：把組別順序洗牌後 round-robin 填滿（清除手動鎖定），每次盡量不同
 function reAutoSchedule(year, month) {
   const b = curBuilding();
@@ -225,12 +311,34 @@ function renderThisWeek() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
-  const sched = getSchedule(year, month);
-  const idx = currentWeekIndex(year, month, now.getDate());
-  const wk = sched.weeks[idx];
+  const today = now.getDate();
   const wd = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
   const tag = $('#thisWeekCard .tw-tag');
-  if (tag) tag.textContent = `本週輪值 · 依今天 ${month}/${now.getDate()}（週${wd}）`;
+  if (tag) tag.textContent = `本週輪值 · 依今天 ${month}/${today}（週${wd}）`;
+
+  // 每日安排模式：顯示「今天 / 下一個倒垃圾日」由哪一組負責
+  if (curBuilding().mode === 'day') {
+    const days = getDaySchedule(year, month);
+    const dates = dutyDates(year, month);
+    const todayDuty = dates.find(dt => dt.day === today);
+    const next = dates.find(dt => dt.day >= today);
+    if (todayDuty) {
+      $('#thisWeekName').textContent = groupName(days[today]);
+      $('#thisWeekSub').textContent = '今天輪到囉，記得倒垃圾 🗑️';
+    } else if (next) {
+      $('#thisWeekName').textContent = groupName(days[next.day]);
+      $('#thisWeekSub').textContent = `下次 ${month}/${next.day}（週${WEEKDAY_LABELS[next.dow]}）`;
+    } else {
+      $('#thisWeekName').textContent = '—';
+      $('#thisWeekSub').textContent = '本月已無倒垃圾日';
+    }
+    return;
+  }
+
+  // 週輪替模式
+  const sched = getSchedule(year, month);
+  const idx = currentWeekIndex(year, month, today);
+  const wk = sched.weeks[idx];
   $('#thisWeekName').textContent = wk ? groupName(wk.groupId) : '—';
   $('#thisWeekSub').textContent = '倒垃圾日：' + dutyDayText();
   return idx;
@@ -245,6 +353,13 @@ function currentWeekIndex(year, month, dayNum) {
 }
 
 function renderBoard() {
+  const hint = $('#boardHint');
+  if (curBuilding().mode === 'day') {
+    if (hint) hint.textContent = '點日曆上的橘色格子，可指定那天由哪一組負責';
+    return renderBoardDay();
+  }
+  if (hint) hint.textContent = '長按左側名牌可拖拉調整週次；點名牌可換組';
+
   const { year, month } = state.view;
   const weeks = computeWeeks(year, month);
   const sched = getSchedule(year, month);
@@ -284,6 +399,67 @@ function renderBoard() {
   });
 
   initSortable();
+}
+
+// 每日安排模式的編輯畫面：整月日曆，點橘色倒垃圾日逐日指定負責組
+function renderBoardDay() {
+  const { year, month } = state.view;
+  const b = curBuilding();
+  const weeks = computeWeeks(year, month);
+  const days = getDaySchedule(year, month);
+  const duty = b.dutyWeekdays;
+  const list = $('#weekList');
+
+  const calRows = weeks.map(wk => {
+    const daysHtml = wk.days.map(d => {
+      const cls = ['wk-day'];
+      if (!d.inMonth) cls.push('out');
+      if (d.dow >= 5) cls.push('weekend');
+      const isDuty = d.inMonth && duty.includes(d.dow);
+      if (isDuty) cls.push('duty');
+      const assign = isDuty
+        ? `<span class="day-assign">${escapeHtml(groupName(days[d.day]))}</span>`
+        : '';
+      const attr = isDuty ? ` data-day="${d.day}"` : '';
+      return `<div class="${cls.join(' ')}"${attr}><span class="dow">${WEEKDAY_LABELS[d.dow]}</span>${d.day}${assign}</div>`;
+    }).join('');
+    return `<div class="cal-row"><span class="cal-badge">W${wk.weekIndex}</span><div class="wk-days">${daysHtml}</div></div>`;
+  }).join('');
+
+  list.innerHTML = `<div class="day-board">${calRows}</div>`;
+  $$('#weekList .wk-day.duty[data-day]').forEach(el => {
+    el.addEventListener('click', () => openPickerDay(parseInt(el.dataset.day, 10)));
+  });
+}
+
+// 每日模式：點某一天 → 指定那天的負責組
+function openPickerDay(dayNum) {
+  const groups = curBuilding().groups;
+  const listEl = $('#pickerList');
+  listEl.innerHTML = '';
+  if (!groups.length) {
+    listEl.innerHTML = '<div class="picker-empty">此館還沒有輪值組，請先到 ⚙️ 設定新增。</div>';
+    openSheet($('#pickerSheet'));
+    return;
+  }
+  groups.forEach(gr => {
+    const item = document.createElement('div');
+    item.className = 'picker-item';
+    item.textContent = gr.name;
+    item.addEventListener('click', () => {
+      const { year, month } = state.view;
+      const key = schedKey(curBuilding().id, year, month);
+      const sched = state.schedules[key] || (state.schedules[key] = {});
+      sched.days = sched.days || {};
+      sched.days[dayNum] = gr.id;
+      save();
+      closeSheet($('#pickerSheet'));
+      rerender();
+      toast('已指定 ' + state.view.month + '/' + dayNum);
+    });
+    listEl.appendChild(item);
+  });
+  openSheet($('#pickerSheet'));
 }
 
 // 規則/注意事項：用跟匯出圖完全相同的兩欄版型，等比例縮放成「所見即所得」預覽
@@ -506,9 +682,23 @@ function openSettings() {
   $('#editOther').innerHTML = b.otherHtml || '';
   updateRichCount($('#editRules'));
   updateRichCount($('#editOther'));
+  renderModePicker();
   renderWeekdayPicker();
   renderGroupEditor();
   openSheet($('#settingsSheet'));
+}
+
+function renderModePicker() {
+  const wrap = $('#modePicker');
+  if (!wrap) return;
+  const mode = curBuilding().mode === 'day' ? 'day' : 'week';
+  wrap.querySelectorAll('.mode-opt').forEach(opt => {
+    opt.classList.toggle('active', opt.dataset.mode === mode);
+    opt.onclick = () => {
+      wrap.querySelectorAll('.mode-opt').forEach(o => o.classList.remove('active'));
+      opt.classList.add('active');
+    };
+  });
 }
 
 function renderWeekdayPicker() {
@@ -551,6 +741,8 @@ function addGroupRow(id, name) {
 function saveSettings() {
   const b = curBuilding();
   b.name = $('#setName').value.trim() || b.name;
+  const modeOpt = $('#modePicker .mode-opt.active');
+  b.mode = (modeOpt && modeOpt.dataset.mode === 'day') ? 'day' : 'week';
   b.rulesHtml = sanitizeHtml($('#editRules').innerHTML);
   b.otherHtml = sanitizeHtml($('#editOther').innerHTML);
   b.dutyWeekdays = $$('#weekdayPicker .wd-chip.on')
@@ -582,19 +774,21 @@ function buildPosterDOM() {
   const b = curBuilding();
   const { year, month } = state.view;
   const weeks = computeWeeks(year, month);
-  const sched = getSchedule(year, month);
+  const isDay = b.mode === 'day';
+  const sched = isDay ? null : getSchedule(year, month);
+  const days = isDay ? getDaySchedule(year, month) : null;
   const duty = b.dutyWeekdays;
 
   const mm = String(month).padStart(2, '0');
   const headRow = `<tr>
-      <th class="mlabel">輪值組</th>
+      <th class="mlabel">${isDay ? '週次' : '輪值組'}</th>
       ${WEEKDAY_EN.map((d, i) => duty.includes(i)
         ? `<th class="wd-duty"><span>${d}</span></th>`
         : `<th>${d}</th>`).join('')}
     </tr>`;
 
   const bodyRows = weeks.map((wk, i) => {
-    const assign = sched.weeks[i] || {};
+    const assign = (sched && sched.weeks[i]) || {};
     const name = groupName(assign.groupId);
     const isNone = !assign.groupId;
     const cells = wk.days.map(d => {
@@ -602,17 +796,24 @@ function buildPosterDOM() {
       const dutyOn = d.inMonth && duty.includes(d.dow);
       if (!d.inMonth) cls.push('out');
       if (dutyOn) cls.push('duty');
+      if (isDay) {
+        if (dutyOn) {
+          cls.push('has-name');
+          return `<td class="${cls.join(' ')}"><div class="p-day-in"><span>${d.day}</span><i class="p-day-name">${escapeHtml(groupName(days[d.day]))}</i></div></td>`;
+        }
+        return `<td class="${cls.join(' ')}">${d.day}</td>`;
+      }
       return `<td class="${cls.join(' ')}">${dutyOn ? `<span>${d.day}</span>` : d.day}</td>`;
     }).join('');
-    return `<tr>
-        <td class="p-name-cell">
+    const nameCell = isDay
+      ? `<td class="p-name-cell"><div class="p-name-wrap"><span class="p-badge">W${wk.weekIndex}</span></div></td>`
+      : `<td class="p-name-cell">
           <div class="p-name-wrap">
             <span class="p-badge">W${wk.weekIndex}</span>
             <span class="p-group ${isNone ? 'none' : ''}">${escapeHtml(name)}</span>
           </div>
-        </td>
-        ${cells}
-      </tr>`;
+        </td>`;
+    return `<tr>${nameCell}${cells}</tr>`;
   }).join('');
 
   const hasText = (h) => h && h.replace(/<[^>]*>/g, '').trim();
@@ -725,7 +926,7 @@ function bind() {
   $('#nextMonth').addEventListener('click', () => shiftMonth(1));
   $('#btnAuto').addEventListener('click', () => {
     if (confirm('隨機重排會打散本月順序並清除手動調整，確定嗎？')) {
-      reAutoSchedule(state.view.year, state.view.month);
+      reAutoScheduleAny(state.view.year, state.view.month);
       rerender();
       toast('已隨機重排');
     }

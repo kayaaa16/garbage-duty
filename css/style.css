@@ -158,6 +158,12 @@ body {
 
 .board-actions { margin: 16px 4px 6px; }
 
+/* 頁尾版權標章 */
+.app-copyright {
+  text-align: center; font-size: 11px; color: var(--ink-soft);
+  letter-spacing: .5px; padding: 14px 16px 6px;
+}
+
 /* ---- 注意事項區 ---- */
 .notes-card {
   margin: 8px 4px 6px; background: var(--card); border-radius: 16px;
@@ -398,11 +404,15 @@ body {
 .p-note-col.other .p-note-body { background: #fff; border: 1px solid #efe7da; color: #574f49; }
 .p-note-body b, .p-note-body strong { font-weight: 900; }
 
-/* 頁尾：提醒文字 ／ 右下小 LOGO */
+/* 頁尾：左=提醒+版權 ／ 右下=LOGO+下載日期 */
 .p-foot {
   margin-top: auto; padding-top: 26px;
-  display: flex; align-items: center; gap: 20px;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 20px;
   font-size: 21px; color: var(--ink-soft);
 }
+.p-foot .pf-left { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .p-foot .pf-tag { font-weight: 500; letter-spacing: 1px; }
-.p-foot .pf-logo { margin-left: auto; height: 48px; width: auto; object-fit: contain; opacity: .92; }
+.p-foot .pf-copy { font-size: 16px; color: #b3a99e; letter-spacing: .5px; }
+.p-foot .pf-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.p-foot .pf-logo { height: 48px; width: auto; object-fit: contain; opacity: .92; }
+.p-foot .pf-date { font-size: 17px; color: var(--ink-soft); letter-spacing: 1px; }

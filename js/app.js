@@ -780,6 +780,8 @@ function buildPosterDOM() {
   const duty = b.dutyWeekdays;
 
   const mm = String(month).padStart(2, '0');
+  const _now = new Date();
+  const dlDate = _now.getFullYear() + '/' + String(_now.getMonth() + 1).padStart(2, '0') + '/' + String(_now.getDate()).padStart(2, '0');
   // 每日模式不顯示 W 欄 (W1-W5 對排班沒意義，拿掉讓日曆撐滿)
   const headRow = `<tr>
       ${isDay ? '' : '<th class="mlabel">輪值組</th>'}
@@ -856,8 +858,14 @@ function buildPosterDOM() {
       </div>
 
       <div class="p-foot">
-        <span class="pf-tag">請依輪值表確實執行，謝謝配合 🙏</span>
-        <img class="pf-logo" src="${window.LOGO_URI || 'assets/logo.png'}" alt="聚空間" />
+        <div class="pf-left">
+          <span class="pf-tag">請依輪值表確實執行，謝謝配合 🙏</span>
+          <span class="pf-copy">© 2026 聚空間租賃管理顧問有限公司</span>
+        </div>
+        <div class="pf-right">
+          <img class="pf-logo" src="${window.LOGO_URI || 'assets/logo.png'}" alt="聚空間" />
+          <span class="pf-date">下載日期 ${dlDate}</span>
+        </div>
       </div>
     </div>`;
 }

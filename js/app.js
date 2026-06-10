@@ -780,8 +780,9 @@ function buildPosterDOM() {
   const duty = b.dutyWeekdays;
 
   const mm = String(month).padStart(2, '0');
+  // 每日模式不顯示 W 欄 (W1-W5 對排班沒意義，拿掉讓日曆撐滿)
   const headRow = `<tr>
-      <th class="mlabel">${isDay ? '週次' : '輪值組'}</th>
+      ${isDay ? '' : '<th class="mlabel">輪值組</th>'}
       ${WEEKDAY_EN.map((d, i) => duty.includes(i)
         ? `<th class="wd-duty"><span>${d}</span></th>`
         : `<th>${d}</th>`).join('')}
@@ -806,7 +807,7 @@ function buildPosterDOM() {
       return `<td class="${cls.join(' ')}">${dutyOn ? `<span>${d.day}</span>` : d.day}</td>`;
     }).join('');
     const nameCell = isDay
-      ? `<td class="p-name-cell"><div class="p-name-wrap"><span class="p-badge">W${wk.weekIndex}</span></div></td>`
+      ? ''   // 每日模式不出 W 欄
       : `<td class="p-name-cell">
           <div class="p-name-wrap">
             <span class="p-badge">W${wk.weekIndex}</span>
@@ -837,7 +838,7 @@ function buildPosterDOM() {
 
       <div class="p-card">
         <table class="p-grid">
-          <colgroup><col class="c-name" /><col /><col /><col /><col /><col /><col /><col /></colgroup>
+          <colgroup>${isDay ? '' : '<col class="c-name" />'}<col /><col /><col /><col /><col /><col /><col /></colgroup>
           <thead>${headRow}</thead>
           <tbody>${bodyRows}</tbody>
         </table>

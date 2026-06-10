@@ -134,6 +134,8 @@ body {
 .day-board .cal-row { height: auto; min-height: 58px; align-items: stretch; }
 .day-board .wk-days { align-items: stretch; }
 .day-board .wk-day { min-height: 52px; justify-content: flex-start; padding-top: 6px; }
+/* 每日模式 W1-W5 badge 垂直置中（避免被 row stretch 拉到頂端） */
+.day-board .cal-badge { align-self: center; }
 .wk-day.duty[data-day] { cursor: pointer; }
 .wk-day.duty[data-day]:active { transform: scale(.96); }
 .wk-day .day-assign {

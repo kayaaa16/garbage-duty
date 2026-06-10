@@ -668,7 +668,8 @@ async function exportPoster() {
   try {
     if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (_) {} }
     autoFitNoteBodies(node);   // 字多時自動縮字塞滿，保證不被裁切
-    const canvas = await html2canvas(node, { scale: 1, backgroundColor: '#f7f3ee', useCORS: true });
+    // scale:2 → 匯出 2160×2880（原本 scale:1 只有 1080×1440 偏模糊），logo 與文字都更銳利
+    const canvas = await html2canvas(node, { scale: 2, backgroundColor: '#f7f3ee', useCORS: true });
     const url = canvas.toDataURL('image/png');
     const a = document.createElement('a');
     a.href = url;

@@ -221,14 +221,16 @@ function renderHeader() {
 }
 
 function renderThisWeek() {
-  const { year, month } = state.view;
-  const sched = getSchedule(year, month);
+  // 「本週輪值」永遠跟著今天的真實日期，不隨上方檢視月份切換而改變
   const now = new Date();
-  let idx = 0;
-  if (now.getFullYear() === year && now.getMonth() + 1 === month) {
-    idx = currentWeekIndex(year, month, now.getDate());
-  }
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const sched = getSchedule(year, month);
+  const idx = currentWeekIndex(year, month, now.getDate());
   const wk = sched.weeks[idx];
+  const wd = ['日', '一', '二', '三', '四', '五', '六'][now.getDay()];
+  const tag = $('#thisWeekCard .tw-tag');
+  if (tag) tag.textContent = `本週輪值 · 依今天 ${month}/${now.getDate()}（週${wd}）`;
   $('#thisWeekName').textContent = wk ? groupName(wk.groupId) : '—';
   $('#thisWeekSub').textContent = '倒垃圾日：' + dutyDayText();
   return idx;
@@ -291,13 +293,17 @@ function renderNotes() {
   const host = $('#notesPreview');
   if (!host) return;
   const fb = (h, ph) => (h && h.replace(/<[^>]*>/g, '').trim()) ? h : `<span class="np-empty">${ph}</span>`;
+  // 量測「目前檢視月份」海報上兩欄正文的可用高度，預覽用同樣固定高度 → 真．所見即所得
+  const avail = posterNoteAvail();
+  const hStyle = (px) => px ? `height:${px}px;flex:none;` : '';
   host.innerHTML = `
     <div class="np-scaler"><div class="p-notes np-board">
-      <div class="p-note-col rules"><div class="p-note-title">規則說明</div><div class="p-note-body">${fb(b.rulesHtml, '（尚未填寫，點右上「編輯」）')}</div></div>
-      <div class="p-note-col other"><div class="p-note-title">其他注意事項</div><div class="p-note-body">${fb(b.otherHtml, '（尚未填寫，點右上「編輯」）')}</div></div>
+      <div class="p-note-col rules"><div class="p-note-title">規則說明</div><div class="p-note-body" style="${hStyle(avail.rules)}">${fb(b.rulesHtml, '（尚未填寫，點右上「編輯」）')}</div></div>
+      <div class="p-note-col other"><div class="p-note-title">其他注意事項</div><div class="p-note-body" style="${hStyle(avail.other)}">${fb(b.otherHtml, '（尚未填寫，點右上「編輯」）')}</div></div>
     </div></div>`;
+  autoFitNoteBodies(host);   // 字太多時自動縮字塞滿固定高度（跟匯出一致）
   fitNotesPreview();
-  setTimeout(fitNotesPreview, 150); // 等字體載入後再校正高度
+  setTimeout(() => { autoFitNoteBodies(host); fitNotesPreview(); }, 150); // 等字體載入後再校正
 }
 function fitNotesPreview() {
   const host = $('#notesPreview');
@@ -310,6 +316,33 @@ function fitNotesPreview() {
   const scale = host.clientWidth / POSTER_NOTES_W;
   board.style.transform = 'scale(' + scale + ')';
   scaler.style.height = (board.offsetHeight * scale) + 'px';
+}
+
+// 量測目前檢視月份海報上「規則 / 其他」兩欄正文的可用高度（海報原始 px，與內容無關，只看版面）
+function posterNoteAvail() {
+  const stage = $('#exportStage');
+  if (!stage) return { rules: 0, other: 0 };
+  stage.innerHTML = buildPosterDOM();
+  const bodies = stage.querySelectorAll('.p-note-body');
+  const avail = {
+    rules: bodies[0] ? bodies[0].clientHeight : 0,
+    other: bodies[1] ? bodies[1].clientHeight : 0,
+  };
+  stage.innerHTML = '';
+  return avail;
+}
+
+// 自動縮字：每欄正文若內容超出固定高度，就把字級往下調到剛好塞得下（下限 9px）
+function autoFitNoteBodies(scope) {
+  scope.querySelectorAll('.p-note-body').forEach(body => {
+    if (!body.clientHeight) return;            // 沒有固定高度就不縮（避免誤縮）
+    let fs = 16;
+    body.style.fontSize = fs + 'px';
+    while (body.scrollHeight > body.clientHeight + 1 && fs > 9) {
+      fs -= 0.5;
+      body.style.fontSize = fs + 'px';
+    }
+  });
 }
 
 /* ---------- 富文本（粗體 / 顏色） ---------- */
@@ -633,6 +666,8 @@ async function exportPoster() {
   toast('產生圖片中…', 4000);
   const node = stage.querySelector('.poster');
   try {
+    if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (_) {} }
+    autoFitNoteBodies(node);   // 字多時自動縮字塞滿，保證不被裁切
     const canvas = await html2canvas(node, { scale: 1, backgroundColor: '#f7f3ee', useCORS: true });
     const url = canvas.toDataURL('image/png');
     const a = document.createElement('a');
